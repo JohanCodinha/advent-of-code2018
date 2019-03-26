@@ -1,6 +1,7 @@
 (ns day4.core
-  (:use [java-time :only (local-time adjust units truncate-to fields time-between local-date local-date-time as)]
-        [clojure.algo.generic.functor :only (fmap)]))
+  (:require
+    [java-time :only (local-time adjust units truncate-to fields time-between local-date local-date-time as)]
+    [clojure.algo.generic.functor :as functor]))
 
 (def inputs (clojure.string/split-lines (slurp "input.txt")))
 
@@ -16,33 +17,33 @@
 (parseTime "1518-04-12 00:57")
 
 (defn parseMatches
-  ([fm g1 g2] 
-   (let [time (parseTime g1)] {:time time :activity g2}))
-  ([fm g1 g2 g3 g4]
-   (let [time (parseTime g1)] {:time time :guardId g3 :activity g4})))
+  ([fm timestamp activity] 
+   (let [parsedTime (parseTime timestamp)] {:time parsedTime :activity activity}))
+  ([fm timestamp g2 guardId activity]
+   (let [parsedTime (parseTime timestamp)] {:time parsedTime :guardId guardId :activity activity})))
 
 (def parsed
   (map
-    #(apply parseMatches
-            (remove nil?
-                    (re-matches #"\[(.+)\] (.+\#(\d+) (.+)|.+)" %)))
-    inputs))
+    #(->> (re-matches #"\[(.+)\] (.+\#(\d+) (.+)|.+)" %)
+          (remove nil?)
+          (apply parseMatches))
+    (sort inputs)))
 
-(def sorted (sort-by :time parsed))
 
 (defn getPreviousKey [key index coll]
   (some key
         (reverse
           (take index coll))))
 
-;(as (local-date 2015 9 20) :year)
+
 (def guardHydrated
   (map-indexed
     (fn [index item]
-      (let [guardId (or (:guardId item) (getPreviousKey :guardId index sorted))]
+      (let [guardId (or (:guardId item) (getPreviousKey :guardId index parsed))]
         (assoc item :guardId guardId)
         ))
-    sorted))
+    parsed))
+
 
 (def sorted-by-guard
   (fmap
@@ -58,14 +59,16 @@
 (def res
   (map
     (fn [[guarId all-guard-shifts]]
-      (let [minutes-sleeped (mapcat
-                              (fn [item]
-                                (let [fa (filter #(= (:activity %) "falls asleep") item)
-                                      wu (filter #(= (:activity %) "wakes up") item)
-                                      minutes (map #(range (as (:time %) :minute-of-hour) (as (:time %2) :minute-of-hour) ) fa wu)]
-                                  minutes))
-                              all-guard-shifts)
-            most-common (first (sort-by val > (frequencies (flatten minutes-sleeped))))]
+      (let [minutes-sleeped
+            (mapcat
+              (fn [item]
+                (let [fa (filter #(= (:activity %) "falls asleep") item)
+                      wu (filter #(= (:activity %) "wakes up") item)
+                      minutes (map #(range (as (:time %) :minute-of-hour) (as (:time %2) :minute-of-hour) ) fa wu)]
+                  minutes))
+              all-guard-shifts)
+            most-common
+            (first (sort-by val > (frequencies (flatten minutes-sleeped))))]
         {:guardId guarId
          :most-common (first most-common)
          :most-common-freq (last most-common)
@@ -73,7 +76,7 @@
          }))
     sorted-by-guard))
 
-(first (reverse (sort-by :most-common-freq res)))
+(last (sort-by :most-common-freq res))
 {:guardId "2719", :most-common 36, :most-common-freq 18, :total-sleep 378}
 
 
