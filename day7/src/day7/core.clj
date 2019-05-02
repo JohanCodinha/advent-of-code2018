@@ -8,7 +8,7 @@
       (rest (re-find #"Step (\D) must be finished before step (\D)" l))) 
   (clojure.string/split-lines text)))
 
-(def dummy (parse-input dummy-data))
+;(def dummy (parse-input dummy-data))
 (def inputs (slurp "input.txt"))
 
 
